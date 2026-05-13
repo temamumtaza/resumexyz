@@ -52,6 +52,9 @@ task.md
 specs/change/active
 .ralph/
 
+# Local handoff/archive artifact from the ResumeXYZ migration audit.
+resume-agentic-workflow-audit.zip
+
 # Nix and direnv
 .direnv/
 .envrc

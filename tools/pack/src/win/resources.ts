@@ -8,12 +8,10 @@ import type { WinPaths, ResourceTreeCacheMetadata } from "./types.js";
 
 async function createResourceTreeCacheKey(config: ToolPackConfig): Promise<string> {
   return hashJson({
-    assetsCommunityPets: await hashPath(join(config.workspaceRoot, "assets", "community-pets")),
     assetsFrames: await hashPath(join(config.workspaceRoot, "assets", "frames")),
     craft: await hashPath(join(config.workspaceRoot, "craft")),
     designSystems: await hashPath(join(config.workspaceRoot, "design-systems")),
     node: "win.resource-tree",
-    promptTemplates: await hashPath(join(config.workspaceRoot, "prompt-templates")),
     schemaVersion: 1,
     skills: await hashPath(join(config.workspaceRoot, "skills")),
   });

@@ -53,16 +53,10 @@ const residualAllowedExactPaths = new Set([
   "packages/platform/esbuild.config.mjs",
   "packages/sidecar/esbuild.config.mjs",
   "packages/sidecar-proto/esbuild.config.mjs",
-  // Maintainer utility scripts ported from the media branch. They are
-  // executed directly by Node and are not loaded by the app runtime.
-  "scripts/import-prompt-templates.mjs",
   "scripts/postinstall.mjs",
   "apps/packaged/esbuild.config.mjs",
   // Browser service workers must be served as JavaScript files.
   "apps/web/public/od-notifications-sw.js",
-  "scripts/bake-html-ppt-examples.mjs",
-  "scripts/scaffold-html-ppt-skills.mjs",
-  "scripts/sync-hyperframes-skill.mjs",
   "scripts/verify-media-models.mjs",
   "tools/dev/bin/tools-dev.mjs",
   "tools/dev/esbuild.config.mjs",
@@ -88,24 +82,11 @@ const residualAllowedPathPrefixes = [
   "e2e/ui/reports/playwright-html-report/",
   "e2e/ui/reports/test-results/",
   "e2e/ui/test-results/",
-  // Vendored upstream HyperFrames helper scripts (design template).
-  "design-templates/hyperframes/scripts/",
-  // Vendored upstream Last30Days runtime helper used by the engine (design template).
-  "design-templates/last30days/scripts/lib/vendor/",
-  // Vendored upstream html-ppt runtime assets (lewislulu/html-ppt-skill, design template).
-  "design-templates/html-ppt/assets/",
   "test-results/",
   "vendor/",
 ];
 
-const residualAllowedPathPatterns: RegExp[] = [
-  // Vendored upstream Zara template runtimes — one design template per template,
-  // name prefix `html-ppt-zhangzara-` (zarazhangrui/beautiful-html-templates).
-  // Only the vendored deck-stage runtime asset is allowlisted; any other
-  // JavaScript under these design-template directories must still be converted
-  // to TypeScript or explicitly listed in `residualAllowedExactPaths`.
-  /^design-templates\/html-ppt-zhangzara-[^/]+\/assets\/deck-stage\.js$/,
-];
+const residualAllowedPathPatterns: RegExp[] = [];
 
 function isResidualAllowedPath(repositoryPath: string): boolean {
   if (residualAllowedExactPaths.has(repositoryPath)) return true;
