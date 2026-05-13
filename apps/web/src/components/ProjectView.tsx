@@ -190,6 +190,28 @@ function readSavedChatPanelWidth(): number {
   }
 }
 
+function pickResumePreviewFile(files: ProjectFile[]): ProjectFile | null {
+  const docs = files.filter((file) => /\.(pdf|docx)$/i.test(file.name));
+  if (docs.length === 0) return null;
+  const score = (file: ProjectFile): number => {
+    const name = file.name.toLowerCase();
+    const isPdf = name.endsWith('.pdf');
+    const isDocx = name.endsWith('.docx');
+    const looksFinal =
+      /(^|[/_-])resume([._-]|$)/.test(name) ||
+      /cv|curriculum-vitae|ats/.test(name);
+    const isSource =
+      /source|import|upload|existing|old|original/.test(name);
+    return (
+      (looksFinal ? 100 : 0) +
+      (isPdf ? 40 : isDocx ? 30 : 0) -
+      (isSource ? 80 : 0) +
+      Math.min(file.mtime || 0, Number.MAX_SAFE_INTEGER) / Number.MAX_SAFE_INTEGER
+    );
+  };
+  return [...docs].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
 function saveChatPanelWidth(width: number): void {
   if (typeof window === 'undefined') return;
   try {
@@ -428,6 +450,7 @@ export function ProjectView({
   const newConversationDisabled = creatingConversation;
   const activeCompletionNotificationRunsRef = useRef<Set<string>>(new Set());
   const completedNotificationRunsRef = useRef<Set<string>>(new Set());
+  const autoStartedPromptRef = useRef<string | null>(null);
 
   // Load conversations on project switch. If none exist (older projects
   // pre-conversations, or a freshly created one whose default seed got
@@ -1359,7 +1382,14 @@ export function ProjectView({
               // upstream repo edit) would spawn a permanent placeholder tab.
               void refreshProjectFiles().then((nextFiles) => {
                 const decision = decideAutoOpenAfterWrite(filePath, nextFiles);
-                if (decision.shouldOpen && decision.fileName) {
+                if (
+                  project.metadata?.intent === 'resume' &&
+                  decision.shouldOpen &&
+                  decision.fileName &&
+                  /\.(pdf|docx)$/i.test(decision.fileName)
+                ) {
+                  requestOpenFile(decision.fileName);
+                } else if (decision.shouldOpen && decision.fileName) {
                   requestOpenFile(decision.fileName);
                 }
               });
@@ -1480,6 +1510,10 @@ export function ProjectView({
           // chips.
           void refreshProjectFiles().then((nextFiles) => {
             const produced = nextFiles.filter((f) => !beforeFileNames.has(f.name));
+            if (project.metadata?.intent === 'resume') {
+              const previewFile = pickResumePreviewFile(produced.length > 0 ? produced : nextFiles);
+              if (previewFile) requestOpenFile(previewFile.name);
+            }
             setMessages((curr) => {
               const updated = curr.map((m) =>
                 m.id === assistantId
@@ -2169,19 +2203,47 @@ export function ProjectView({
     saveChatPanelWidth(next);
   }, [applyChatPanelWidth]);
 
-  // Hand the pending prompt to ChatPane exactly once per project. The local
+  // Resume projects should begin with the agent speaking, not with a seeded
+  // composer draft or generic starter cards. For non-resume projects, keep
+  // the old "seed composer once" behavior.
+  const shouldAutoStartPendingPrompt =
+    project.metadata?.intent === 'resume' && Boolean(project.pendingPrompt);
+
+  useEffect(() => {
+    const pendingPrompt = project.pendingPrompt;
+    if (!pendingPrompt || project.metadata?.intent !== 'resume') return;
+    if (!activeConversationId) return;
+    if (messagesConversationIdRef.current !== activeConversationId) return;
+    if (currentConversationBusy) return;
+    const key = `${project.id}:${activeConversationId}:${pendingPrompt}`;
+    if (autoStartedPromptRef.current === key) return;
+    autoStartedPromptRef.current = key;
+    onClearPendingPrompt();
+    void handleSend(pendingPrompt, [], []);
+  }, [
+    activeConversationId,
+    currentConversationBusy,
+    handleSend,
+    onClearPendingPrompt,
+    project.id,
+    project.metadata?.intent,
+    project.pendingPrompt,
+  ]);
+
+  // Hand non-resume pending prompts to ChatPane exactly once per project. The local
   // project-scoped snapshot survives the conversation-id remount, while the
   // persisted pendingPrompt is cleared so refreshes and later entries do not
   // re-seed the composer.
   const [initialDraft, setInitialDraft] = useState<
     { projectId: string; value: string } | undefined
   >(
-    project.pendingPrompt
+    project.pendingPrompt && project.metadata?.intent !== 'resume'
       ? { projectId: project.id, value: project.pendingPrompt }
       : undefined,
   );
   useEffect(() => {
     const pendingPrompt = project.pendingPrompt;
+    if (project.metadata?.intent === 'resume') return;
     if (!pendingPrompt) return;
     setInitialDraft((current) =>
       current?.projectId === project.id
@@ -2189,9 +2251,11 @@ export function ProjectView({
         : { projectId: project.id, value: pendingPrompt },
     );
     onClearPendingPrompt();
-  }, [project.id, project.pendingPrompt, onClearPendingPrompt]);
+  }, [project.id, project.metadata?.intent, project.pendingPrompt, onClearPendingPrompt]);
   const chatInitialDraft =
-    initialDraft?.projectId === project.id ? initialDraft.value : undefined;
+    shouldAutoStartPendingPrompt
+      ? undefined
+      : initialDraft?.projectId === project.id ? initialDraft.value : undefined;
 
   // Continue in CLI / Finalize design package handlers + keyboard
   // shortcut wiring. Close to the JSX so the data flow is easy to

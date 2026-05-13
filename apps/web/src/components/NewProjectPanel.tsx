@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { ConnectorDetail, ImportFolderResponse } from '@open-design/contracts';
 
 // Window.electronAPI is declared globally in apps/web/src/types/electron.d.ts
@@ -21,6 +21,7 @@ import type {
   ProjectTemplate,
   MediaProviderCredentials,
   PromptTemplateSummary,
+  ResumeSourceMode,
   SkillSummary,
 } from '../types';
 import {
@@ -79,6 +80,11 @@ type PromptTemplatePick = {
 };
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
+type ResumeUrlSourceKind = NonNullable<ProjectMetadata['resumeSource']>['sourceKind'];
+
+function isResumeSkillId(skillId: string | null): boolean {
+  return skillId === 'resume-generator' || Boolean(skillId?.startsWith('resume-'));
+}
 
 type NewProjectPlatform = Exclude<ProjectPlatform, 'auto'>;
 
@@ -127,10 +133,13 @@ export interface CreateInput {
   skillId: string | null;
   designSystemId: string | null;
   metadata: ProjectMetadata;
+  initialFiles?: File[];
+  pendingPrompt?: string;
 }
 
 interface Props {
   skills: SkillSummary[];
+  resumeDesignTemplates?: SkillSummary[];
   designSystems: DesignSystemSummary[];
   defaultDesignSystemId: string | null;
   templates: ProjectTemplate[];
@@ -195,6 +204,7 @@ export function buildDesignSystemCreateSelection(
 
 export function NewProjectPanel({
   skills,
+  resumeDesignTemplates,
   designSystems,
   defaultDesignSystemId,
   templates,
@@ -223,7 +233,7 @@ export function NewProjectPanel({
   const [importFolderError, setImportFolderError] = useState<
     { message: string; details?: string } | null
   >(null);
-  const [tab, setTab] = useState<CreateTab>('prototype');
+  const [tab] = useState<CreateTab>('prototype');
   // Media tab consolidates image / video / audio. The active surface picks
   // which set of options + skill resolution applies; submission still maps
   // back to the existing image/video/audio ProjectKind branches so the
@@ -232,6 +242,13 @@ export function NewProjectPanel({
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const [tabScroll, setTabScroll] = useState({ left: false, right: false });
   const [name, setName] = useState('');
+  const [resumeSourceMode, setResumeSourceMode] = useState<ResumeSourceMode>('fresh');
+  const [resumeSourceUrl, setResumeSourceUrl] = useState('');
+  const [resumeSourceFile, setResumeSourceFile] = useState<File | null>(null);
+  const resumeUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<string | null>(
+    () => resumeDesignTemplates?.[0]?.id ?? null,
+  );
   // Design-system selection is now an *array* internally so the same
   // component can drive both single-select and multi-select modes without
   // duplicating state. Single-select coerces to length 0/1.
@@ -312,13 +329,22 @@ export function NewProjectPanel({
       ? s.scenario === 'orbit' && s.designSystemRequired === false
       : false;
   }, [tab, skills]);
-  const showDesignSystemPicker =
-    tabSupportsDesignSystem && !tabDefaultSkillForcesNoDs;
+  const showDesignSystemPicker = false;
 
   useEffect(() => {
     if (dsSelectionTouched) return;
     setSelectedDsIds(initialDefaultDsSelection);
   }, [dsSelectionTouched, initialDefaultDsSelection]);
+
+  // Auto-select the first resume design template when the list loads
+  // for the first time (or if the previously selected one disappears).
+  useEffect(() => {
+    if (!resumeDesignTemplates?.length) return;
+    setSelectedResumeTemplateId((prev) => {
+      if (prev && resumeDesignTemplates.some((t) => t.id === prev)) return prev;
+      return resumeDesignTemplates[0]!.id;
+    });
+  }, [resumeDesignTemplates]);
 
   // When entering the template tab, snap to the first user-saved template
   // if there is one (and we don't already have a valid pick). The template
@@ -341,7 +367,14 @@ export function NewProjectPanel({
   const skillIdForTab = useMemo(() => {
     if (tab === 'other') return null;
     if (tab === 'prototype') {
+      // When a resume design template is selected, use its ID as the skill
+      // so the project loads the correct SKILL.md visual/section rules.
+      if (selectedResumeTemplateId && resumeDesignTemplates?.some((t) => t.id === selectedResumeTemplateId)) {
+        return selectedResumeTemplateId;
+      }
       const list = skills.filter((s) => s.mode === 'prototype');
+      const resume = list.find((s) => s.id === 'resume-generator');
+      if (resume) return resume.id;
       return list.find((s) => s.defaultFor.includes('prototype'))?.id
         ?? list[0]?.id
         ?? null;
@@ -381,7 +414,7 @@ export function NewProjectPanel({
         ?? null;
     }
     return null;
-  }, [tab, mediaSurface, skills, videoModel]);
+  }, [tab, mediaSurface, skills, videoModel, selectedResumeTemplateId, resumeDesignTemplates]);
 
   // When the user picks a curated prompt template, propagate the template's
   // declared `model` and `aspect` onto the actual project state. Without
@@ -438,7 +471,10 @@ export function NewProjectPanel({
   }, [tab, mediaSurface, skillIdForTab, videoModelTouched]);
 
   const canCreate =
-    !loading && (tab !== 'template' || templateId != null);
+    !loading &&
+    (tab !== 'template' || templateId != null) &&
+    (resumeSourceMode !== 'link' || resumeSourceUrl.trim().length > 0) &&
+    (resumeSourceMode !== 'upload' || resumeSourceFile !== null);
 
   function updateTabScrollState() {
     const el = tabsRef.current;
@@ -503,6 +539,7 @@ export function NewProjectPanel({
         : null;
     const metadata = buildMetadata({
       tab,
+      skillId: skillIdForTab,
       mediaSurface,
       fidelity,
       platformTargets,
@@ -523,12 +560,28 @@ export function NewProjectPanel({
       voice,
       inspirationIds: inspirations,
       promptTemplate: promptTemplatePick,
+      resumeSourceMode,
+      resumeSourceUrl,
+      resumeSourceFileName: resumeSourceFile?.name ?? null,
+      resumeTemplateLabel: resumeDesignTemplates?.find((s) => s.id === skillIdForTab)?.name,
     });
+    let pendingPrompt: string | undefined;
+    if (isResumeSkillId(skillIdForTab)) {
+      const tpl = resumeDesignTemplates?.find((s) => s.id === skillIdForTab);
+      if (tpl) {
+        pendingPrompt =
+          `${tpl.examplePrompt || tpl.description}\n\nSelected resume template: ${tpl.name}. ` +
+          `This is the LOCKED visual and structural reference for the entire session — ` +
+          `follow its section order, accent style, and layout rules strictly throughout the workflow.`;
+      }
+    }
     onCreate({
       name: name.trim() || autoName(tab, mediaSurface, t),
       skillId: skillIdForTab,
       designSystemId: primaryDs,
       metadata,
+      initialFiles: resumeSourceFile ? [resumeSourceFile] : undefined,
+      pendingPrompt,
     });
   }
 
@@ -601,49 +654,9 @@ export function NewProjectPanel({
 
   return (
     <div className="newproj" data-testid="new-project-panel">
-      <div className={`newproj-tabs-shell${tabScroll.left ? ' can-left' : ''}${tabScroll.right ? ' can-right' : ''}`}>
-        <button
-          type="button"
-          className={`newproj-tabs-arrow left${tabScroll.left ? '' : ' hidden'}`}
-          onClick={() => scrollTabs(-1)}
-          aria-label="Scroll project types left"
-          tabIndex={tabScroll.left ? 0 : -1}
-        >
-          <Icon name="chevron-left" size={16} strokeWidth={2} />
-        </button>
-        <div className="newproj-tabs" role="tablist" ref={tabsRef}>
-          {(Object.keys(TAB_LABEL_KEYS) as CreateTab[]).map((entry) => (
-            <button
-              key={entry}
-              role="tab"
-              data-testid={`new-project-tab-${entry}`}
-              aria-selected={tab === entry}
-              className={`newproj-tab ${tab === entry ? 'active' : ''}`}
-              onClick={() => setTab(entry)}
-            >
-              {t(TAB_LABEL_KEYS[entry])}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className={`newproj-tabs-arrow right${tabScroll.right ? '' : ' hidden'}`}
-          onClick={() => scrollTabs(1)}
-          aria-label="Scroll project types right"
-          tabIndex={tabScroll.right ? 0 : -1}
-        >
-          <Icon name="chevron-right" size={16} strokeWidth={2} />
-        </button>
-      </div>
       <div className="newproj-body">
         <h3 className="newproj-title">
-          <span className="newproj-title-text">{titleForTab(tab, mediaSurface, t)}</span>
-          {tab === 'live-artifact' ? (
-            // "Beta" is an internationally adopted brand-style status marker;
-            // intentionally not run through t() (consistent with short product
-            // status pills that read the same across our supported locales).
-            <span className="newproj-title-badge" aria-label="Beta feature">Beta</span>
-          ) : null}
+          <span className="newproj-title-text">{t('newproj.titlePrototype')}</span>
         </h3>
 
         <input
@@ -652,6 +665,24 @@ export function NewProjectPanel({
           placeholder={t('newproj.namePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+
+        {resumeDesignTemplates && resumeDesignTemplates.length > 0 ? (
+          <ResumeDesignTemplatePicker
+            templates={resumeDesignTemplates}
+            value={selectedResumeTemplateId}
+            onChange={setSelectedResumeTemplateId}
+          />
+        ) : null}
+
+        <ResumeSourcePicker
+          mode={resumeSourceMode}
+          url={resumeSourceUrl}
+          file={resumeSourceFile}
+          inputRef={resumeUploadInputRef}
+          onMode={setResumeSourceMode}
+          onUrl={setResumeSourceUrl}
+          onFile={setResumeSourceFile}
         />
 
         {showDesignSystemPicker ? (
@@ -706,11 +737,11 @@ export function NewProjectPanel({
           />
         ) : null}
 
-        {tab === 'prototype' || tab === 'live-artifact' || tab === 'template' || tab === 'other' ? (
+        {false ? (
           <PlatformPicker value={platformTargets} onChange={setPlatformTargets} />
         ) : null}
 
-        {tab === 'prototype' || tab === 'live-artifact' || tab === 'template' || tab === 'other' ? (
+        {false ? (
           <SurfaceOptions
             includeLandingPage={includeLandingPage}
             includeOsWidgets={includeOsWidgets}
@@ -722,7 +753,7 @@ export function NewProjectPanel({
 
         {/* Live artifact always renders at high fidelity — its whole point
             is data-bound polished UI, so the wireframe option is hidden. */}
-        {tab === 'prototype' ? (
+        {false ? (
           <FidelityPicker value={fidelity} onChange={setFidelity} />
         ) : null}
 
@@ -834,6 +865,7 @@ export function NewProjectPanel({
             <button
               type="button"
               className="ghost newproj-import"
+              style={{ display: 'none' }}
               disabled={loading || importing}
               title={t('newproj.importClaudeZipTitle')}
               onClick={() => importInputRef.current?.click()}
@@ -848,7 +880,7 @@ export function NewProjectPanel({
           </>
         ) : null}
         {(hasElectronPickAndImport ? onImportFolderResponse : onImportFolder) ? (
-          <div className="newproj-open-folder">
+          <div className="newproj-open-folder" style={{ display: 'none' }}>
             {!hasElectronPickAndImport ? (
               <input
                 type="text"
@@ -880,6 +912,151 @@ export function NewProjectPanel({
           ttlMs={6000}
           onDismiss={() => setImportFolderError(null)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+const RESUME_TEMPLATE_ACCENTS: Record<string, string> = {
+  'resume-ats-default':    '#1f5f99',
+  'resume-modern-minimal': '#374151',
+  'resume-executive-bold': '#1a5e3c',
+  'resume-creative-clean': '#0d6e83',
+};
+
+function ResumeDesignTemplatePicker({
+  templates,
+  value,
+  onChange,
+}: {
+  templates: SkillSummary[];
+  value: string | null;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="newproj-section resume-template-pick">
+      <label className="newproj-label">Resume template</label>
+      <div className="resume-template-grid">
+        {templates.map((tpl) => {
+          const accent = RESUME_TEMPLATE_ACCENTS[tpl.id] ?? '#374151';
+          return (
+            <button
+              key={tpl.id}
+              type="button"
+              className={`newproj-card resume-template-card${value === tpl.id ? ' active' : ''}`}
+              aria-pressed={value === tpl.id}
+              onClick={() => onChange(tpl.id)}
+            >
+              <span
+                className="resume-template-swatch"
+                style={{ background: accent }}
+                aria-hidden
+              />
+              <span className="resume-template-name">{tpl.name}</span>
+              <span className="resume-template-desc">{tpl.description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ResumeSourcePicker({
+  mode,
+  url,
+  file,
+  inputRef,
+  onMode,
+  onUrl,
+  onFile,
+}: {
+  mode: ResumeSourceMode;
+  url: string;
+  file: File | null;
+  inputRef: RefObject<HTMLInputElement>;
+  onMode: (mode: ResumeSourceMode) => void;
+  onUrl: (url: string) => void;
+  onFile: (file: File | null) => void;
+}) {
+  const options: Array<{
+    mode: ResumeSourceMode;
+    icon: 'sparkles' | 'upload' | 'link';
+    title: string;
+    hint: string;
+  }> = [
+    {
+      mode: 'fresh',
+      icon: 'sparkles',
+      title: 'Fresh start',
+      hint: 'Guided interview from zero',
+    },
+    {
+      mode: 'upload',
+      icon: 'upload',
+      title: 'Upload resume',
+      hint: 'Improve an existing PDF/DOCX',
+    },
+    {
+      mode: 'link',
+      icon: 'link',
+      title: 'Import link',
+      hint: 'LinkedIn, portfolio, GitHub, or profile text URL',
+    },
+  ];
+
+  return (
+    <div className="newproj-section resume-source">
+      <label className="newproj-label">Resume source</label>
+      <div className="resume-source-grid">
+        {options.map((option) => (
+          <button
+            key={option.mode}
+            type="button"
+            className={`newproj-card resume-source-card${mode === option.mode ? ' active' : ''}`}
+            aria-pressed={mode === option.mode}
+            onClick={() => onMode(option.mode)}
+          >
+            <Icon name={option.icon} size={14} />
+            <span className="resume-source-title">{option.title}</span>
+            <span className="resume-source-hint">{option.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {mode === 'upload' ? (
+        <div className="resume-source-control">
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            hidden
+            onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+          />
+          <button
+            type="button"
+            className="ghost resume-source-upload"
+            onClick={() => inputRef.current?.click()}
+          >
+            <Icon name="upload" size={13} />
+            <span>{file ? file.name : 'Choose PDF or DOCX'}</span>
+          </button>
+        </div>
+      ) : null}
+
+      {mode === 'link' ? (
+        <div className="resume-source-control">
+          <input
+            className="resume-source-input"
+            type="url"
+            placeholder="https://www.linkedin.com/in/..."
+            value={url}
+            onChange={(event) => onUrl(event.target.value)}
+          />
+          <p className="resume-source-note">
+            Public pages are read directly. If LinkedIn blocks public access, the agent will ask for pasted profile text or an exported resume.
+          </p>
+        </div>
       ) : null}
     </div>
   );
@@ -2365,6 +2542,7 @@ function OptionCards<T extends string | number>({
 
 function buildMetadata(input: {
   tab: CreateTab;
+  skillId: string | null;
   mediaSurface: MediaSurface;
   fidelity: 'wireframe' | 'high-fidelity';
   platformTargets: NewProjectPlatform[];
@@ -2385,6 +2563,10 @@ function buildMetadata(input: {
   voice: string;
   inspirationIds: string[];
   promptTemplate: PromptTemplatePick | null;
+  resumeSourceMode: ResumeSourceMode;
+  resumeSourceUrl: string;
+  resumeSourceFileName: string | null;
+  resumeTemplateLabel?: string;
 }): ProjectMetadata {
   const kind: ProjectKind =
     input.tab === 'live-artifact'
@@ -2408,6 +2590,16 @@ function buildMetadata(input: {
     ? { inspirationDesignSystemIds: input.inspirationIds }
     : {};
   if (input.tab === 'prototype' || input.tab === 'live-artifact') {
+    if (isResumeSkillId(input.skillId)) {
+      return {
+        kind,
+        intent: 'resume',
+        resumeSource: buildResumeSourceMetadata(input),
+        fidelity: input.fidelity,
+        ...(input.resumeTemplateLabel ? { templateLabel: input.resumeTemplateLabel } : {}),
+        ...inspirations,
+      };
+    }
     return {
       kind,
       ...base,
@@ -2467,6 +2659,49 @@ function buildMetadata(input: {
     };
   }
   return { kind: 'other', ...base, ...inspirations };
+}
+
+function buildResumeSourceMetadata(input: {
+  resumeSourceMode: ResumeSourceMode;
+  resumeSourceUrl: string;
+  resumeSourceFileName: string | null;
+}): ProjectMetadata['resumeSource'] {
+  if (input.resumeSourceMode === 'link') {
+    const url = input.resumeSourceUrl.trim();
+    return {
+      mode: 'link',
+      label: 'Import from link',
+      url,
+      sourceKind: classifyResumeSourceUrl(url),
+      extractionStatus: 'pending',
+    };
+  }
+  if (input.resumeSourceMode === 'upload') {
+    return {
+      mode: 'upload',
+      label: 'Upload existing resume',
+      fileName: input.resumeSourceFileName ?? undefined,
+      sourceKind: 'resume-file',
+      extractionStatus: 'pending',
+    };
+  }
+  return {
+    mode: 'fresh',
+    label: 'Fresh start',
+  };
+}
+
+function classifyResumeSourceUrl(url: string): ResumeUrlSourceKind {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes('linkedin.')) return 'linkedin';
+    if (host === 'github.com' || host.endsWith('.github.io')) return 'github';
+    if (/portfolio|resume|cv|about/i.test(parsed.pathname)) return 'portfolio';
+    return 'generic-url';
+  } catch {
+    return 'generic-url';
+  }
 }
 
 function normalizeSelectedPlatforms(platforms: NewProjectPlatform[]): NewProjectPlatform[] {

@@ -1,4 +1,5 @@
 import type { ChatMessage } from './chat.js';
+import type { ResumeIntakeState } from './resume-agentic.js';
 
 export type ProjectKind =
   | 'prototype'
@@ -62,9 +63,26 @@ export interface PromptTemplateMetadata {
   source?: PromptTemplateMetadataSource;
 }
 
+export type ResumeSourceMode = 'fresh' | 'upload' | 'link';
+
+export interface ResumeSourceMetadata {
+  mode: ResumeSourceMode;
+  label?: string;
+  url?: string;
+  fileName?: string;
+  sourceKind?: 'linkedin' | 'portfolio' | 'github' | 'personal-site' | 'generic-url' | 'resume-file';
+  extractedTitle?: string;
+  extractedTextPreview?: string;
+  extractedAt?: number;
+  extractionStatus?: 'pending' | 'ok' | 'blocked' | 'failed';
+  extractionWarning?: string;
+}
+
 export interface ProjectMetadata {
   kind: ProjectKind;
-  intent?: 'live-artifact';
+  intent?: 'live-artifact' | 'resume';
+  resumeSource?: ResumeSourceMetadata;
+  resumeIntakeState?: ResumeIntakeState;
   fidelity?: 'wireframe' | 'high-fidelity';
   speakerNotes?: boolean;
   animations?: boolean;

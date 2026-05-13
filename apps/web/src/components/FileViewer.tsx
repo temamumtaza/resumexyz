@@ -88,6 +88,26 @@ import { isRenderableSketchJson, SketchPreview } from './SketchPreview';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
 type SlideState = { active: number; count: number };
+type RenderedPdfPage = { pageNumber: number; imageUrl: string; width: number; height: number };
+
+function isPdfPreviewFile(file: ProjectFile): boolean {
+  return file.kind === 'pdf' || file.mime === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+function isDocxPreviewFile(file: ProjectFile): boolean {
+  return (
+    /\.docx$/i.test(file.name) ||
+    file.mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  );
+}
+
+async function fetchProjectFileBuffer(projectId: string, file: ProjectFile): Promise<ArrayBuffer> {
+  const resp = await fetch(`${projectFileUrl(projectId, file.name)}?v=${encodeURIComponent(String(file.mtime))}`, {
+    cache: 'no-store',
+  });
+  if (!resp.ok) throw new Error(`Failed to load ${file.name}: ${resp.status}`);
+  return await resp.arrayBuffer();
+}
 type BoardTool = 'inspect' | 'pod';
 type StrokePoint = { x: number; y: number };
 type PreviewViewportId = 'desktop' | 'tablet' | 'mobile';
@@ -3233,18 +3253,104 @@ function DocumentPreviewViewer({
 }) {
   const t = useT();
   const [preview, setPreview] = useState<ProjectFilePreview | null>(null);
+  const [docxSrcDoc, setDocxSrcDoc] = useState<string | null>(null);
+  const [pdfPages, setPdfPages] = useState<RenderedPdfPage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setPreview(null);
-    void fetchProjectFilePreview(projectId, file.name).then((next) => {
+    async function loadPreview() {
+      setLoading(true);
+      setPreview(null);
+      setDocxSrcDoc(null);
+      setPdfPages([]);
+      setRenderError(null);
+
+      try {
+        if (isDocxPreviewFile(file)) {
+          const docxPreview = await import('docx-preview');
+          const arrayBuffer = await fetchProjectFileBuffer(projectId, file);
+          const bodyContainer = document.createElement('div');
+          const styleContainer = document.createElement('div');
+          await docxPreview.renderAsync(arrayBuffer, bodyContainer, styleContainer, {
+            breakPages: true,
+            className: 'docx-preview-rendered',
+            ignoreFonts: false,
+            ignoreHeight: false,
+            ignoreWidth: false,
+            inWrapper: true,
+            renderEndnotes: true,
+            renderFooters: true,
+            renderFootnotes: true,
+            renderHeaders: true,
+            useBase64URL: true,
+          });
+          if (!cancelled) {
+            setDocxSrcDoc(`<!doctype html><html><head><meta charset="utf-8">${styleContainer.innerHTML}<style>
+              html,body{margin:0;min-height:100%;background:#f2f3f5}
+              body{box-sizing:border-box;padding:28px;font-family:Arial,Helvetica,sans-serif}
+              .docx-wrapper{background:transparent;padding:0}
+              .docx-wrapper>section.docx{margin:0 auto 28px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+            </style></head><body>${bodyContainer.innerHTML}</body></html>`);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (isPdfPreviewFile(file)) {
+          const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+          pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/legacy/build/pdf.worker.mjs',
+            import.meta.url,
+          ).toString();
+          const data = await fetchProjectFileBuffer(projectId, file);
+          const loadingTask = (pdfjs.getDocument as unknown as (params: {
+            data: Uint8Array;
+          }) => { promise: Promise<{ numPages: number; getPage(pageNumber: number): Promise<any> }> })({
+            data: new Uint8Array(data),
+          });
+          const pdf = await loadingTask.promise;
+          const pageCount = Math.min(pdf.numPages, 8);
+          const rendered: RenderedPdfPage[] = [];
+          for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+            if (cancelled) return;
+            const page = await pdf.getPage(pageNumber);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const scale = Math.min(1.45, 980 / Math.max(baseViewport.width, 1));
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Canvas is not available for PDF preview');
+            await page.render({ canvas, canvasContext: context, viewport }).promise;
+            rendered.push({
+              pageNumber,
+              imageUrl: canvas.toDataURL('image/png'),
+              width: canvas.width,
+              height: canvas.height,
+            });
+          }
+          if (!cancelled) {
+            setPdfPages(rendered);
+            setLoading(false);
+          }
+          return;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRenderError(err instanceof Error ? err.message : String(err));
+        }
+      }
+
+      const next = await fetchProjectFilePreview(projectId, file.name);
       if (!cancelled) {
         setPreview(next);
         setLoading(false);
       }
-    });
+    }
+    void loadPreview();
     return () => {
       cancelled = true;
     };
@@ -3263,9 +3369,33 @@ function DocumentPreviewViewer({
       <div className="viewer-body">
         {loading ? (
           <div className="viewer-empty">{t('fileViewer.loading')}</div>
+        ) : docxSrcDoc ? (
+          <div className="document-preview document-preview-docx">
+            <iframe
+              title={file.name}
+              className="document-preview-frame document-preview-frame-docx"
+              sandbox=""
+              srcDoc={docxSrcDoc}
+            />
+          </div>
+        ) : pdfPages.length > 0 ? (
+          <div className="pdf-preview" aria-label={`${file.name} preview`}>
+            {pdfPages.map((page) => (
+              <figure className="pdf-page" key={page.pageNumber}>
+                <img
+                  alt={`${file.name} page ${page.pageNumber}`}
+                  src={page.imageUrl}
+                  width={page.width}
+                  height={page.height}
+                />
+                <figcaption>Page {page.pageNumber}</figcaption>
+              </figure>
+            ))}
+          </div>
         ) : preview ? (
-          <div className="document-preview">
+          <div className="document-preview document-preview-fallback">
             <h2>{preview.title}</h2>
+            {renderError ? <p className="document-preview-note">{renderError}</p> : null}
             {preview.sections.map((section, idx) => (
               <section key={`${section.title}-${idx}`}>
                 <h3>{section.title}</h3>

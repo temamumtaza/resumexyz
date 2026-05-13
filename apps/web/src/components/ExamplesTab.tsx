@@ -30,24 +30,6 @@ type ModeFilter =
 type SurfaceFilter = 'all' | Surface;
 type ScenarioFilter = string;
 
-const SURFACE_PILLS: { value: SurfaceFilter; labelKey: keyof Dict }[] = [
-  { value: 'all', labelKey: 'examples.modeAll' },
-  { value: 'web', labelKey: 'examples.surfaceWeb' },
-  { value: 'image', labelKey: 'examples.surfaceImage' },
-  { value: 'video', labelKey: 'examples.surfaceVideo' },
-  { value: 'audio', labelKey: 'examples.surfaceAudio' },
-];
-
-const MODE_PILLS: { value: ModeFilter; labelKey: keyof Dict }[] = [
-  { value: 'all', labelKey: 'examples.modeAll' },
-  { value: 'prototype-desktop', labelKey: 'examples.modePrototypeDesktop' },
-  { value: 'prototype-mobile', labelKey: 'examples.modePrototypeMobile' },
-  { value: 'deck', labelKey: 'examples.modeDeck' },
-  { value: 'document', labelKey: 'examples.modeDocument' },
-  { value: 'orbit', labelKey: 'examples.modeOrbit' },
-  { value: 'live', labelKey: 'examples.modeLive' },
-];
-
 const SCENARIO_LABEL_KEY: Record<string, keyof Dict> = {
   general: 'examples.scenarioGeneral',
   engineering: 'examples.scenarioEngineering',
@@ -150,8 +132,8 @@ export function ExamplesTab({ skills: rawSkills, onUsePrompt }: Props) {
   // setState landed. The ref check happens before any await so the second
   // caller sees the first one already running and exits early.
   const inFlightRef = useRef<Set<string>>(new Set());
-  const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilter>('all');
-  const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
+  const [surfaceFilter] = useState<SurfaceFilter>('all');
+  const [modeFilter] = useState<ModeFilter>('all');
   const [scenarioFilter, setScenarioFilter] = useState<ScenarioFilter>('all');
   // Free-text search filters by skill name + description + prompt so users
   // can find a known example by typing any associated word ("airbnb",
@@ -261,34 +243,6 @@ export function ExamplesTab({ skills: rawSkills, onUsePrompt }: Props) {
     [skills, previewSkillId],
   );
 
-  const modeCounts = useMemo(() => {
-    const surfaceScoped = skills.filter((skill) => matchesSurface(skill, surfaceFilter));
-    const c: Record<ModeFilter, number> = {
-      all: surfaceScoped.length,
-      'prototype-desktop': 0,
-      'prototype-mobile': 0,
-      deck: 0,
-      document: 0,
-      orbit: 0,
-      live: 0,
-    };
-    for (const s of surfaceScoped) {
-      if (matchesMode(s, 'prototype-desktop')) c['prototype-desktop']++;
-      if (matchesMode(s, 'prototype-mobile')) c['prototype-mobile']++;
-      if (matchesMode(s, 'deck')) c.deck++;
-      if (matchesMode(s, 'document')) c.document++;
-      if (matchesMode(s, 'orbit')) c.orbit++;
-      if (matchesMode(s, 'live')) c.live++;
-    }
-    return c;
-  }, [skills, surfaceFilter]);
-
-  const surfaceCounts = useMemo(() => {
-    const counts: Record<SurfaceFilter, number> = { all: skills.length, web: 0, image: 0, video: 0, audio: 0 };
-    for (const s of skills) counts[surfaceOf(s)]++;
-    return counts;
-  }, [skills]);
-
   const scenarioCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const s of skills) {
@@ -359,49 +313,19 @@ export function ExamplesTab({ skills: rawSkills, onUsePrompt }: Props) {
         <div
           className="examples-filter-row"
           role="tablist"
-          aria-label={t('examples.surfaceLabel')}
-        >
-          <span className="examples-filter-label">{t('examples.surfaceLabel')}</span>
-          {SURFACE_PILLS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              role="tab"
-              aria-selected={surfaceFilter === p.value}
-              className={`filter-pill ${surfaceFilter === p.value ? 'active' : ''}`}
-              onClick={() => {
-                setSurfaceFilter(p.value);
-                setModeFilter('all');
-                setScenarioFilter('all');
-              }}
-            >
-              {t(p.labelKey)}
-              <span className="filter-pill-count">{surfaceCounts[p.value]}</span>
-            </button>
-          ))}
-        </div>
-        <div
-          className="examples-filter-row"
-          role="tablist"
           aria-label={t('examples.typeLabel')}
         >
           <span className="examples-filter-label">{t('examples.typeLabel')}</span>
-          {MODE_PILLS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              role="tab"
-              aria-selected={modeFilter === p.value}
-              className={`filter-pill ${modeFilter === p.value ? 'active' : ''}`}
-              onClick={() => {
-                setModeFilter(p.value);
-                setScenarioFilter('all');
-              }}
-            >
-              {t(p.labelKey)}
-              <span className="filter-pill-count">{modeCounts[p.value]}</span>
-            </button>
-          ))}
+          <button
+            type="button"
+            role="tab"
+            aria-selected="true"
+            className="filter-pill active"
+            onClick={() => setScenarioFilter('all')}
+          >
+            ATS
+            <span className="filter-pill-count">{skills.length}</span>
+          </button>
         </div>
         {scenarioOptions.length > 1 ? (
           <div
@@ -740,6 +664,9 @@ function ExampleCard({
 }
 
 function tagForSkill(skill: SkillSummary, t: TranslateFn): string {
+  if (skill.scenario === 'resume' || skill.category === 'resume' || skill.id.startsWith('resume-')) {
+    return 'ATS';
+  }
   if (skill.mode === 'image' || skill.surface === 'image') return t('examples.tagImage');
   if (skill.mode === 'video' || skill.surface === 'video') return t('examples.tagVideo');
   if (skill.mode === 'audio' || skill.surface === 'audio') return t('examples.tagAudio');

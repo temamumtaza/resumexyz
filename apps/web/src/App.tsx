@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { EntryView } from './components/EntryView';
 import type { CreateInput } from './components/NewProjectPanel';
 import { MemoryToast } from './components/MemoryToast';
-import { PetOverlay } from './components/pet/PetOverlay';
 import { migrateCustomPetAtlas } from './components/pet/pets';
 import { ProjectView } from './components/ProjectView';
 import {
@@ -18,6 +17,9 @@ import {
   fetchDesignTemplates,
   fetchPromptTemplates,
   fetchSkills,
+  ingestResumeSourceUrl,
+  uploadProjectFiles,
+  writeProjectTextFile,
 } from './providers/registry';
 import { navigate, useRoute } from './router';
 import {
@@ -55,6 +57,7 @@ import type {
   AppVersionInfo,
   DesignSystemSummary,
   Project,
+  ProjectMetadata,
   ProjectTemplate,
   PromptTemplateSummary,
   SkillSummary,
@@ -65,6 +68,75 @@ export function shouldSyncMediaProvidersOnSave(
   options?: { force?: boolean },
 ): boolean {
   return Boolean(options?.force) || hasAnyConfiguredProvider(mediaProviders);
+}
+
+async function enrichResumeSourceMetadata(
+  metadata: ProjectMetadata,
+): Promise<{ metadata: ProjectMetadata; sourceText?: string; sourceWarning?: string }> {
+  const source = metadata.resumeSource;
+  if (!source || source.mode !== 'link' || !source.url) return { metadata };
+  const ingested = await ingestResumeSourceUrl(source.url);
+  if (!ingested) {
+    return {
+      metadata: {
+        ...metadata,
+        resumeSource: {
+          ...source,
+          extractionStatus: 'failed',
+          extractionWarning:
+            'Could not read the public page. Ask the user to paste profile text or upload an exported resume.',
+        },
+      },
+      sourceWarning:
+        'The link could not be read publicly. Ask for pasted LinkedIn/profile text or a resume upload before generating.',
+    };
+  }
+  return {
+    metadata: {
+      ...metadata,
+      resumeSource: {
+        ...source,
+        url: ingested.finalUrl ?? ingested.url,
+        sourceKind: ingested.sourceKind,
+        extractedTitle: ingested.title,
+        extractedTextPreview: ingested.text.slice(0, 1200),
+        extractedAt: Date.now(),
+        extractionStatus: 'ok',
+        extractionWarning: ingested.warning,
+      },
+    },
+    sourceText: ingested.text,
+    sourceWarning: ingested.warning,
+  };
+}
+
+function buildResumePendingPrompt(input: {
+  metadata: ProjectMetadata;
+  sourceWarning?: string;
+  sourceFileName?: string;
+  uploadedFileNames?: string[];
+}): string {
+  const source = input.metadata.resumeSource;
+  const base =
+    'Create an ATS-friendly resume. Start with source-aware intake, ask at most 3 questions per turn, do not move to generation until the role evidence, projects/achievements gate, tools/keywords, and HR readiness score pass. Export only resume.docx and resume.pdf.';
+  if (!source || source.mode === 'fresh') {
+    return `${base}\n\nSource mode: Fresh start. Begin with target discovery, then deeply collect work evidence.`;
+  }
+  if (source.mode === 'upload') {
+    const names = input.uploadedFileNames?.length
+      ? input.uploadedFileNames.join(', ')
+      : source.fileName ?? 'uploaded resume';
+    return `${base}\n\nSource mode: Upload existing resume.\nAttached source file(s): ${names}.\nFirst parse the uploaded resume as source material, extract structured facts, identify weak or missing bullets, then ask only for the highest-value missing details before generating.`;
+  }
+  const warning = input.sourceWarning ? `\nSource warning: ${input.sourceWarning}` : '';
+  const fileHint = input.sourceFileName
+    ? `\nExtracted source file: ${input.sourceFileName}. Read it as the starting profile source.`
+    : '\nNo public text was extracted. Ask the user to paste profile text or upload a resume before generating.';
+  return `${base}\n\nSource mode: Import from link.\nURL: ${source.url ?? ''}\nDetected source kind: ${source.sourceKind ?? 'generic-url'}${warning}${fileHint}\n\nStart by greeting the user and reflecting what you could extract from the source. Ask the user to correct it, then ask only the next 1-3 questions that improve ATS/HR score.`;
+}
+
+function isResumeSkillId(skillId: string | null | undefined): boolean {
+  return skillId === 'resume-generator' || Boolean(skillId?.startsWith('resume-'));
 }
 
 function normalizeSavedComposioConfig(config: AppConfig['composio']): AppConfig['composio'] {
@@ -615,20 +687,46 @@ export function App() {
       // to "None" for every kind now, and the user expects that to land
       // as a no-design-system project rather than silently inheriting the
       // workspace default.
+      const enriched = input.metadata?.intent === 'resume'
+        ? await enrichResumeSourceMetadata(input.metadata)
+        : { metadata: input.metadata };
+      const uploadedFileNames = input.initialFiles?.map((file) => file.name) ?? [];
+      const sourceFileName =
+        enriched.metadata?.resumeSource?.mode === 'link' && enriched.sourceText?.trim()
+          ? 'resume-source-import.txt'
+          : undefined;
       const derivedPendingPrompt =
-      input.pendingPrompt ??
-      (input.metadata?.promptTemplate?.prompt?.trim() || undefined);
+        input.pendingPrompt ??
+        (input.metadata?.promptTemplate?.prompt?.trim() || undefined) ??
+        (isResumeSkillId(input.skillId)
+          ? buildResumePendingPrompt({
+              metadata: enriched.metadata,
+              sourceWarning: enriched.sourceWarning,
+              sourceFileName,
+              uploadedFileNames,
+            })
+          : undefined);
 
       const result = await createProject({
         name: input.name,
         skillId: input.skillId,
         designSystemId: input.designSystemId,
         pendingPrompt: derivedPendingPrompt,
-        metadata: input.metadata,
+        metadata: enriched.metadata,
       });
       if (!result) return;
+      if (sourceFileName && enriched.sourceText?.trim()) {
+        await writeProjectTextFile(
+          result.project.id,
+          sourceFileName,
+          `Source URL: ${enriched.metadata.resumeSource?.url ?? ''}\nSource kind: ${enriched.metadata.resumeSource?.sourceKind ?? 'generic-url'}\n\n${enriched.sourceText}`,
+        );
+      }
+      if (input.initialFiles?.length) {
+        await uploadProjectFiles(result.project.id, input.initialFiles);
+      }
       setProjects((curr) => [
-        result.project,
+        { ...result.project, metadata: enriched.metadata },
         ...curr.filter((p) => p.id !== result.project.id),
       ]);
       navigate({
@@ -767,12 +865,6 @@ export function App() {
     setSettingsOpen(true);
   }, []);
 
-  const openPetSettings = useCallback(() => {
-    setSettingsWelcome(false);
-    setSettingsInitialSection('pet');
-    setSettingsOpen(true);
-  }, []);
-
   const openMcpSettings = useCallback(() => {
     setSettingsWelcome(false);
     setSettingsInitialSection('mcpClient');
@@ -883,7 +975,9 @@ export function App() {
   const enabledDesignTemplates = useMemo(
     () =>
       designTemplates.filter(
-        (s) => !(config.disabledSkills ?? []).includes(s.id),
+        (s) =>
+          !(config.disabledSkills ?? []).includes(s.id)
+          && (s.scenario === 'resume' || s.category === 'resume' || s.id.startsWith('resume-')),
       ),
     [designTemplates, config.disabledSkills],
   );
@@ -914,9 +1008,6 @@ export function App() {
           onRefreshAgents={refreshAgents}
           onOpenSettings={openSettings}
           onOpenMcpSettings={openMcpSettings}
-          onAdoptPetInline={handleAdoptPet}
-          onTogglePet={handleTogglePet}
-          onOpenPetSettings={openPetSettings}
           onBack={handleBack}
           onClearPendingPrompt={handleClearPendingPrompt}
           onTouchProject={handleTouchProject}
@@ -949,16 +1040,8 @@ export function App() {
           onRenameProject={handleRenameProject}
           onChangeDefaultDesignSystem={handleChangeDefaultDesignSystem}
           onOpenSettings={openSettings}
-          onAdoptPet={openPetSettings}
-          onAdoptPetInline={handleAdoptPet}
-          onTogglePet={handleTogglePet}
         />
       )}
-      <PetOverlay
-        pet={config.pet?.enabled ? config.pet : undefined}
-        onTuck={handleTuckPet}
-        onOpenSettings={openPetSettings}
-      />
       {settingsOpen ? (
         <SettingsDialog
           initial={config}

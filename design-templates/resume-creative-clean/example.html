@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creative Clean Resume Template</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --rule: #e5e7eb;
+      --accent: #0d6e83;
+      --accent-soft: #e0f2f7;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.46;
+    }
+    main {
+      width: min(8.5in, calc(100vw - 32px));
+      min-height: 11in;
+      margin: 24px auto;
+      background: var(--paper);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+    }
+    .header-accent {
+      height: 6px;
+      background: var(--accent);
+    }
+    header {
+      padding: 22px 0.65in 16px;
+      border-bottom: 1px solid var(--rule);
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--ink);
+    }
+    .headline {
+      margin-top: 5px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .contact {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .body-wrap {
+      padding: 20px 0.65in 0.65in;
+    }
+    section { margin-top: 18px; }
+    h2 {
+      margin: 0 0 9px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    h2::after {
+      content: '';
+      display: block;
+      height: 1px;
+      flex: 1;
+      background: var(--rule);
+      margin-left: 4px;
+    }
+    p { margin: 0; font-size: 11.5px; }
+    ul { margin: 5px 0 0 18px; padding: 0; }
+    li { margin: 4px 0; font-size: 11.5px; }
+    .item { margin-top: 12px; }
+    .item:first-child { margin-top: 0; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 11.5px;
+    }
+    .role { font-weight: 700; }
+    .meta { color: var(--muted); white-space: nowrap; font-size: 11px; }
+    .sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .skill-groups { display: flex; flex-direction: column; gap: 5px; }
+    .skill-row { display: flex; gap: 6px; align-items: baseline; font-size: 11.5px; flex-wrap: wrap; }
+    .skill-label { color: var(--accent); font-weight: 600; min-width: 80px; flex-shrink: 0; font-size: 11px; }
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 10.5px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: auto; min-height: auto; margin: 0; box-shadow: none; }
+      .header-accent { background: var(--accent) !important; -webkit-print-color-adjust: exact; }
+      .tag { background: var(--accent-soft) !important; -webkit-print-color-adjust: exact; }
+      .body-wrap { padding-top: 18px; }
+      @page { size: letter; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header-accent"></div>
+    <header>
+      <h1>[Full Name]</h1>
+      <div class="headline">[Target Role] · [Primary Specialty]</div>
+      <div class="contact">[City, Country] · [email] · [phone] · [LinkedIn] · [Portfolio/GitHub]</div>
+    </header>
+
+    <div class="body-wrap">
+      <section>
+        <h2>Professional Profile</h2>
+        <p>[2-3 line personal, specific summary — who you are, your strongest proof point with a real number, and what you bring to the target company or role. No filler phrases.]</p>
+      </section>
+
+      <section>
+        <h2>Core Skills</h2>
+        <div class="skill-groups">
+          <div class="skill-row">
+            <span class="skill-label">[Category 1]</span>
+            <div class="skill-tags">
+              <span class="tag">[Skill]</span>
+              <span class="tag">[Skill]</span>
+              <span class="tag">[Skill]</span>
+            </div>
+          </div>
+          <div class="skill-row">
+            <span class="skill-label">[Category 2]</span>
+            <div class="skill-tags">
+              <span class="tag">[Tool]</span>
+              <span class="tag">[Tool]</span>
+              <span class="tag">[Tool]</span>
+            </div>
+          </div>
+          <div class="skill-row">
+            <span class="skill-label">[Methods]</span>
+            <div class="skill-tags">
+              <span class="tag">[Method]</span>
+              <span class="tag">[Method]</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Professional Experience</h2>
+        <div class="item">
+          <div class="row">
+            <div><span class="role">[Job Title]</span>, [Company]</div>
+            <div class="meta">[Mon YYYY] – [Present / Mon YYYY]</div>
+          </div>
+          <div class="sub">[Location or Remote]</div>
+          <ul>
+            <li>[Action verb] [scope/context] using [method/tool], resulting in [metric/outcome].</li>
+            <li>[Action verb] [project/process] for [audience/team], improving [business/user outcome].</li>
+            <li>[Action verb] [collaboration/ownership] across [teams/functions] to deliver [result].</li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <h2>Selected Projects</h2>
+        <div class="item">
+          <div class="row">
+            <div><span class="role">[Project Name]</span> · [Context / Company]</div>
+            <div class="meta">[Year]</div>
+          </div>
+          <p class="sub">[Technologies / domain]</p>
+          <ul>
+            <li>[Built/led/designed] [what], enabling [user/business outcome] for [audience/scope].</li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <h2>Education</h2>
+        <div class="item">
+          <div class="row">
+            <div><span class="role">[Degree / Program]</span>, [Institution]</div>
+            <div class="meta">[Year]</div>
+          </div>
+          <div class="sub">[Location]</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Certifications</h2>
+        <div class="item">
+          <div class="row">
+            <div><span class="role">[Certification Name]</span> · [Issuer]</div>
+            <div class="meta">[Year]</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

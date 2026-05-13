@@ -74,6 +74,17 @@ export function QuestionFormView({ form, interactive, submittedAnswers, onSubmit
     const v = currentAnswers[q.id];
     return Array.isArray(v) ? v.length > 0 : typeof v === 'string' && v.trim().length > 0;
   });
+  const checklistProgress = useMemo(() => {
+    if (!/checklist/i.test(form.id)) return null;
+    const checkboxQuestions = form.questions.filter((q) => q.type === 'checkbox' && q.options?.length);
+    const total = checkboxQuestions.reduce((sum, q) => sum + (q.options?.length ?? 0), 0);
+    if (total === 0) return null;
+    const checked = checkboxQuestions.reduce((sum, q) => {
+      const v = currentAnswers[q.id];
+      return sum + (Array.isArray(v) ? v.length : 0);
+    }, 0);
+    return { checked, total, pct: Math.round((checked / total) * 100) };
+  }, [currentAnswers, form.id, form.questions]);
 
   return (
     <div className={`question-form${locked ? ' question-form-locked' : ''}`} data-form-id={form.id}>
@@ -87,6 +98,17 @@ export function QuestionFormView({ form, interactive, submittedAnswers, onSubmit
         </div>
         {locked ? <span className="question-form-pill">{t('qf.answered')}</span> : null}
       </div>
+      {checklistProgress ? (
+        <div className="qf-progress" aria-label={`${checklistProgress.checked} of ${checklistProgress.total} checked`}>
+          <div className="qf-progress-meta">
+            <span>Checklist progress</span>
+            <span>{checklistProgress.checked} / {checklistProgress.total}</span>
+          </div>
+          <div className="qf-progress-track" aria-hidden>
+            <span style={{ width: `${checklistProgress.pct}%` }} />
+          </div>
+        </div>
+      ) : null}
       <div className="question-form-body">
         {form.questions.map((q) => {
           const value = currentAnswers[q.id];

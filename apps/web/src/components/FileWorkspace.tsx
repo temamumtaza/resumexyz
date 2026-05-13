@@ -276,7 +276,7 @@ export function FileWorkspace({
       Array.from(e.dataTransfer?.types ?? []).includes('Files');
     const isAllowedDropTarget = (target: EventTarget | null) => {
       if (!(target instanceof Element)) return false;
-      return Boolean(target.closest('.df-drop, .composer'));
+      return Boolean(target.closest('.composer'));
     };
     const onDragOver = (e: DragEvent) => {
       if (!hasFiles(e) || isAllowedDropTarget(e.target)) return;
@@ -749,10 +749,7 @@ export function FileWorkspace({
             onRenameFile={handleRename}
             onDeleteFile={(name) => void handleDelete(name)}
             onDeleteFiles={handleDeleteMany}
-            onUpload={() => fileInputRef.current?.click()}
-            onUploadFiles={(picked) => void uploadFiles(picked)}
-            onPaste={() => setShowPasteDialog(true)}
-            onNewSketch={startNewSketch}
+            generating={Boolean(streaming)}
             uploadError={uploadError}
             onClearUploadError={() => setUploadError(null)}
           />

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATS Resume Template</title>
+  <style>
+    :root {
+      --ink: #171717;
+      --muted: #5f6368;
+      --rule: #d7d7d7;
+      --accent: #1f5f99;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.42;
+    }
+    main {
+      width: min(8.5in, calc(100vw - 32px));
+      min-height: 11in;
+      margin: 24px auto;
+      padding: 0.58in 0.62in;
+      background: var(--paper);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    }
+    header { border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+    .headline {
+      margin-top: 4px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .contact {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    section { margin-top: 16px; }
+    h2 {
+      margin: 0 0 7px;
+      padding-bottom: 3px;
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    p { margin: 0; font-size: 11.5px; }
+    ul { margin: 6px 0 0 18px; padding: 0; }
+    li { margin: 4px 0; font-size: 11.5px; }
+    .item { margin-top: 11px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 11.5px;
+    }
+    .role { font-weight: 700; }
+    .meta { color: var(--muted); white-space: nowrap; }
+    .sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .skills { font-size: 11.5px; }
+    @media print {
+      body { background: #fff; }
+      main { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      @page { size: letter; margin: 0.58in 0.62in; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>[Full Name]</h1>
+      <div class="headline">[Target Role] · [Primary Specialty]</div>
+      <div class="contact">[City, Country] · [email] · [phone] · [LinkedIn] · [Portfolio/GitHub]</div>
+    </header>
+
+    <section>
+      <h2>Summary</h2>
+      <p>[2-3 line targeted summary grounded in real experience, target role, domain strengths, and strongest measurable impact.]</p>
+    </section>
+
+    <section>
+      <h2>Core Skills</h2>
+      <p class="skills">[Skill group]: [skills] · [Skill group]: [skills] · [Tools]: [tools]</p>
+    </section>
+
+    <section>
+      <h2>Professional Experience</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Job Title]</span>, [Company]</div>
+          <div class="meta">[Month Year] - [Present/Month Year]</div>
+        </div>
+        <div class="sub">[Location or Remote]</div>
+        <ul>
+          <li>[Action verb] [scope/context] using [method/tool], resulting in [metric/outcome].</li>
+          <li>[Action verb] [project/process] for [audience/team], improving [business/user outcome].</li>
+          <li>[Action verb] [collaboration/ownership] across [teams/functions] to deliver [result].</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Selected Projects</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Project Name]</span></div>
+          <div class="meta">[Year]</div>
+        </div>
+        <p class="sub">[Technologies / domain]</p>
+        <ul>
+          <li>[Built/led/designed] [what], enabling [user/business outcome] for [audience].</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Education</h2>
+      <div class="row">
+        <div><span class="role">[Degree / Program]</span>, [Institution]</div>
+        <div class="meta">[Year]</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

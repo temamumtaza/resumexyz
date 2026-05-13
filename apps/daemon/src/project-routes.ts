@@ -1,4 +1,9 @@
 import type { Express } from 'express';
+import {
+  scoreResumeIntakeState,
+  type ResumeIntakeState,
+  type UpdateResumeIntakeStateRequest,
+} from '@open-design/contracts/api/resume-agentic';
 import { ArtifactRegressionError } from './artifact-stub-guard.js';
 import type { RouteDeps } from './server-context.js';
 
@@ -60,6 +65,51 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
       runId: run.id,
     };
   }
+
+  app.post('/api/resume/ingest-url', async (req, res) => {
+    try {
+      const rawUrl = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+      if (!rawUrl) return sendApiError(res, 400, 'BAD_REQUEST', 'url required');
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'only http(s) URLs are supported');
+      }
+      if (isBlockedResumeIngestHost(parsed.hostname)) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'private and local URLs are not supported');
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
+      let upstream: Response;
+      try {
+        upstream = await fetch(parsed.toString(), {
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: {
+            'accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.2',
+            'user-agent': 'ResumeXYZ/0.1 source-ingestion (+https://resumexyz.local)',
+          },
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!upstream.ok) {
+        return sendApiError(res, 422, 'SOURCE_UNAVAILABLE', `source returned HTTP ${upstream.status}`);
+      }
+      const contentType = upstream.headers.get('content-type') ?? '';
+      const body = await upstream.text();
+      const extracted = extractReadableResumeSource(body, contentType, upstream.url || parsed.toString());
+      if (extracted.text.length < 120) {
+        extracted.warning =
+          extracted.warning ??
+          'The page exposed very little public text. Ask the user to paste profile text or upload an exported profile/resume if critical details are missing.';
+      }
+      res.json(extracted);
+    } catch (err: any) {
+      const message = err?.name === 'AbortError' ? 'source request timed out' : String(err?.message ?? err);
+      sendApiError(res, 422, 'SOURCE_INGEST_FAILED', message);
+    }
+  });
 
   app.post('/api/projects', async (req, res) => {
     try {
@@ -175,6 +225,57 @@ export function registerProjectRoutes(app: Express, ctx: RegisterProjectRoutesDe
     /** @type {import('@open-design/contracts').ProjectResponse} */
     const body = { project, resolvedDir };
     res.json(body);
+  });
+
+  app.get('/api/projects/:id/resume-intake-state', (req, res) => {
+    const project = getProject(db, req.params.id);
+    if (!project)
+      return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+    const state = project.metadata?.resumeIntakeState ?? null;
+    /** @type {import('@open-design/contracts').ResumeIntakeStateResponse} */
+    const body = { state };
+    res.json(body);
+  });
+
+  app.patch('/api/projects/:id/resume-intake-state', (req, res) => {
+    try {
+      const project = getProject(db, req.params.id);
+      if (!project)
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      const body = (req.body ?? {}) as UpdateResumeIntakeStateRequest;
+      if (!body.state || typeof body.state !== 'object') {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'state required');
+      }
+      const existing = project.metadata?.resumeIntakeState;
+      const mergedCompletedPhases = Array.from(new Set([
+        ...(existing?.completedPhases ?? []),
+        ...(body.state.completedPhases ?? []),
+      ]));
+      const nextState: ResumeIntakeState = {
+        version: 1,
+        ...(existing ?? {}),
+        ...body.state,
+        phase: body.state.phase ?? existing?.phase ?? 'source',
+        completedPhases: mergedCompletedPhases,
+        updatedAt: Date.now(),
+      } as ResumeIntakeState;
+      nextState.version = 1;
+      nextState.updatedAt = Date.now();
+      nextState.deterministicScore = scoreResumeIntakeState(nextState);
+      const metadata = {
+        ...(project.metadata ?? {}),
+        intent: project.metadata?.intent ?? 'resume',
+        resumeIntakeState: nextState,
+      };
+      const updated = updateProject(db, req.params.id, { metadata });
+      if (!updated)
+        return sendApiError(res, 404, 'PROJECT_NOT_FOUND', 'not found');
+      /** @type {import('@open-design/contracts').ResumeIntakeStateResponse} */
+      const response = { state: updated.metadata?.resumeIntakeState ?? nextState };
+      res.json(response);
+    } catch (err: any) {
+      sendApiError(res, 400, 'BAD_REQUEST', String(err?.message ?? err));
+    }
   });
 
   app.patch('/api/projects/:id', (req, res) => {
@@ -1015,4 +1116,108 @@ export function registerProjectUploadRoutes(app: Express, ctx: RegisterProjectUp
       }
     },
   );
+}
+
+function isBlockedResumeIngestHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  if (!host) return true;
+  if (
+    host === 'localhost' ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local')
+  ) return true;
+  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return true;
+  const private172 = host.match(/^172\.(\d+)\./);
+  if (private172) {
+    const part = Number(private172[1]);
+    if (part >= 16 && part <= 31) return true;
+  }
+  return false;
+}
+
+function extractReadableResumeSource(
+  raw: string,
+  contentType: string,
+  url: string,
+): {
+  url: string;
+  finalUrl?: string;
+  title?: string;
+  sourceKind: 'linkedin' | 'portfolio' | 'github' | 'personal-site' | 'generic-url';
+  text: string;
+  warning?: string;
+} {
+  const sourceKind = classifyResumeSourceUrl(url);
+  const isHtml = /html|xml/i.test(contentType) || /<\/?[a-z][\s\S]*>/i.test(raw);
+  const title = isHtml ? decodeHtmlEntities(firstMatch(raw, /<title[^>]*>([\s\S]*?)<\/title>/i)) : undefined;
+  const text = normalizeReadableText(
+    isHtml
+      ? decodeHtmlEntities(
+          raw
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+            .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/(p|div|section|article|li|h[1-6]|tr)>/gi, '\n')
+            .replace(/<[^>]+>/g, ' '),
+        )
+      : raw,
+  ).slice(0, 24_000);
+  return {
+    url,
+    finalUrl: url,
+    ...(title ? { title: normalizeReadableText(title).slice(0, 180) } : {}),
+    sourceKind,
+    text,
+  };
+}
+
+function classifyResumeSourceUrl(url: string): 'linkedin' | 'portfolio' | 'github' | 'personal-site' | 'generic-url' {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host.includes('linkedin.')) return 'linkedin';
+    if (host === 'github.com' || host.endsWith('.github.io')) return 'github';
+    if (/portfolio|about|resume|cv/i.test(parsed.pathname)) return 'portfolio';
+    if (!/(medium|substack|notion|docs\.google|drive\.google)/i.test(host)) return 'personal-site';
+  } catch {
+    return 'generic-url';
+  }
+  return 'generic-url';
+}
+
+function firstMatch(input: string, pattern: RegExp): string | undefined {
+  const match = input.match(pattern);
+  return match?.[1]?.trim() || undefined;
+}
+
+function decodeHtmlEntities(input: string | undefined): string {
+  if (!input) return '';
+  return input
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_m, n) => {
+      const code = Number(n);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : ' ';
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_m, n) => {
+      const code = Number.parseInt(n, 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : ' ';
+    });
+}
+
+function normalizeReadableText(input: string): string {
+  return input
+    .replace(/\r/g, '\n')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

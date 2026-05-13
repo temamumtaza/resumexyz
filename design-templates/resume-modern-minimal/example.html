@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modern Minimal Resume Template</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --rule: #e5e7eb;
+      --accent: #374151;
+      --accent-light: #9ca3af;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.48;
+    }
+    main {
+      width: min(8.5in, calc(100vw - 32px));
+      min-height: 11in;
+      margin: 24px auto;
+      padding: 0.65in 0.68in;
+      background: var(--paper);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.09);
+    }
+    header { padding-bottom: 14px; border-bottom: 1.5px solid var(--accent); }
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      font-weight: 300;
+      letter-spacing: -0.5px;
+      color: var(--ink);
+    }
+    .headline {
+      margin-top: 5px;
+      color: var(--accent);
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .contact {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.01em;
+    }
+    section { margin-top: 18px; }
+    h2 {
+      margin: 0 0 9px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--rule);
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    p { margin: 0; font-size: 11.5px; color: var(--ink); }
+    ul { margin: 5px 0 0 17px; padding: 0; }
+    li { margin: 3px 0; font-size: 11.5px; }
+    .item {
+      margin-top: 12px;
+      padding-left: 10px;
+      border-left: 2px solid var(--rule);
+    }
+    .item:first-child { margin-top: 0; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 11.5px;
+    }
+    .role { font-weight: 600; color: var(--ink); }
+    .meta { color: var(--accent-light); white-space: nowrap; font-size: 11px; }
+    .sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .skills { font-size: 11.5px; }
+    @media print {
+      body { background: #fff; }
+      main { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      @page { size: letter; margin: 0.65in 0.68in; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>[Full Name]</h1>
+      <div class="headline">[Target Role] · [Primary Specialty]</div>
+      <div class="contact">[City, Country] · [email] · [phone] · [LinkedIn] · [Portfolio/GitHub]</div>
+    </header>
+
+    <section>
+      <h2>Summary</h2>
+      <p>[2-3 line targeted summary grounded in real experience, target role, domain strengths, and strongest measurable impact.]</p>
+    </section>
+
+    <section>
+      <h2>Core Skills</h2>
+      <p class="skills">[Category]: [skills] · [Category]: [skills] · [Tools]: [tools]</p>
+    </section>
+
+    <section>
+      <h2>Work Experience</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Job Title]</span> — [Company]</div>
+          <div class="meta">[Mon YYYY] – [Present / Mon YYYY]</div>
+        </div>
+        <div class="sub">[Location or Remote]</div>
+        <ul>
+          <li>[Action verb] [scope/context] using [method/tool], resulting in [metric/outcome].</li>
+          <li>[Action verb] [project/process] for [audience/team], improving [business/user outcome].</li>
+          <li>[Action verb] [collaboration/ownership] across [teams/functions] to deliver [result].</li>
+        </ul>
+      </div>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Previous Job Title]</span> — [Company]</div>
+          <div class="meta">[Mon YYYY] – [Mon YYYY]</div>
+        </div>
+        <div class="sub">[Location or Remote]</div>
+        <ul>
+          <li>[Action verb] [what was built/led/owned], enabling [outcome] for [audience/scope].</li>
+          <li>[Action verb] [process/initiative] that [result with metric].</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Education</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Degree / Program]</span> — [Institution]</div>
+          <div class="meta">[Year]</div>
+        </div>
+        <div class="sub">[Location]</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Certifications</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Certification Name]</span> · [Issuer]</div>
+          <div class="meta">[Year]</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

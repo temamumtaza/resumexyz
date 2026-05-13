@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Executive Bold Resume Template</title>
+  <style>
+    :root {
+      --ink: #111111;
+      --muted: #4b5563;
+      --rule: #d1d5db;
+      --accent: #1a5e3c;
+      --accent-light: #dcfce7;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.44;
+    }
+    main {
+      width: min(8.5in, calc(100vw - 32px));
+      min-height: 11in;
+      margin: 24px auto;
+      padding: 0.6in 0.65in;
+      background: var(--paper);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.11);
+    }
+    header {
+      padding-bottom: 12px;
+      border-bottom: 3px solid var(--accent);
+    }
+    h1 {
+      margin: 0;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--ink);
+    }
+    .headline {
+      margin-top: 5px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .contact {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    section { margin-top: 18px; }
+    h2 {
+      margin: 0 0 8px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--accent);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 12.5px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    p { margin: 0; font-size: 11.5px; }
+    ul { margin: 6px 0 0 18px; padding: 0; }
+    li { margin: 4px 0; font-size: 11.5px; }
+    .summary-block {
+      padding: 10px 12px;
+      border-left: 4px solid var(--accent);
+      background: #f0fdf4;
+      border-radius: 0 4px 4px 0;
+    }
+    .impact-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .impact-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 11.5px;
+    }
+    .impact-number {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+      min-width: 64px;
+    }
+    .impact-label { color: var(--muted); }
+    .item { margin-top: 12px; }
+    .item:first-child { margin-top: 0; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 11.5px;
+    }
+    .role { font-weight: 700; color: var(--ink); }
+    .meta { color: var(--muted); white-space: nowrap; font-size: 11px; }
+    .sub { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .skills { font-size: 11.5px; }
+    @media print {
+      body { background: #fff; }
+      main { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      .summary-block { background: #f0fdf4 !important; -webkit-print-color-adjust: exact; }
+      @page { size: letter; margin: 0.6in 0.65in; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>[Full Name]</h1>
+      <div class="headline">[Target Role] · [Primary Domain]</div>
+      <div class="contact">[City, Country] · [email] · [phone] · [LinkedIn] · [Portfolio/GitHub]</div>
+    </header>
+
+    <section>
+      <h2>Executive Summary</h2>
+      <div class="summary-block">
+        <p>[Sentence 1: Who you are + years of experience + primary domain.] [Sentence 2: Strongest proof with one concrete number — revenue driven, team scaled, cost reduced, product shipped.] [Sentence 3: Value proposition for target company/role.]</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Core Leadership Competencies</h2>
+      <p class="skills">[Leadership domain]: [skills] · [Technical domain]: [tools] · [Methodology]: [methods]</p>
+    </section>
+
+    <section>
+      <h2>Career Impact</h2>
+      <div class="impact-grid">
+        <div class="impact-stat">
+          <span class="impact-number">[X×]</span>
+          <span class="impact-label">[Revenue/growth achieved or team/scope scaled — e.g. "grew ARR from $2M to $18M over 3 years"]</span>
+        </div>
+        <div class="impact-stat">
+          <span class="impact-number">[N]</span>
+          <span class="impact-label">[Team members led or cross-functional partners aligned — e.g. "led 42-person product and engineering org"]</span>
+        </div>
+        <div class="impact-stat">
+          <span class="impact-number">[%]</span>
+          <span class="impact-label">[Efficiency or cost improvement — e.g. "reduced time-to-deploy by 60% through CI/CD overhaul"]</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Professional Experience</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Job Title]</span>, [Company]</div>
+          <div class="meta">[Month Year] – [Present / Month Year]</div>
+        </div>
+        <div class="sub">[Location or Remote] · [Team/Org size if relevant]</div>
+        <ul>
+          <li>[Action verb] [scope/context] using [method/tool], resulting in [metric/outcome].</li>
+          <li>[Action verb] [project/process] for [audience/team], improving [business/user outcome].</li>
+          <li>[Action verb] [cross-functional initiative] across [teams/functions] to deliver [result with scale].</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Education</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Degree / Program]</span>, [Institution]</div>
+          <div class="meta">[Year]</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Certifications & Executive Education</h2>
+      <div class="item">
+        <div class="row">
+          <div><span class="role">[Certification or Program Name]</span> · [Issuer]</div>
+          <div class="meta">[Year]</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

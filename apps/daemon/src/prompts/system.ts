@@ -40,6 +40,18 @@ import { defaultCritiqueConfig, type CritiqueConfig } from '@open-design/contrac
 type ProjectMetadata = {
   kind?: string;
   intent?: string | null;
+  resumeSource?: {
+    mode?: 'fresh' | 'upload' | 'link' | string;
+    label?: string | null;
+    url?: string | null;
+    fileName?: string | null;
+    sourceKind?: string | null;
+    extractedTitle?: string | null;
+    extractedTextPreview?: string | null;
+    extractedAt?: number | null;
+    extractionStatus?: string | null;
+    extractionWarning?: string | null;
+  } | null;
   fidelity?: string | null;
   speakerNotes?: boolean | null;
   animations?: boolean | null;
@@ -255,7 +267,10 @@ export function composeSystemPrompt({
     );
   }
 
-  const metaBlock = renderMetadataBlock(metadata, template);
+  const isResumeWorkflow = isResumeSkill(skillName, skillBody);
+  const metaBlock = isResumeWorkflow
+    ? renderResumeMetadataBlock(metadata, template)
+    : renderMetadataBlock(metadata, template);
   if (metaBlock) parts.push(metaBlock);
 
   // Decks have a load-bearing framework (nav, counter, scroll JS, print
@@ -718,6 +733,45 @@ function renderMetadataBlock(
   return lines.join('\n');
 }
 
+function isResumeSkill(
+  skillName: string | undefined,
+  skillBody: string | undefined,
+): boolean {
+  const name = (skillName ?? '').toLowerCase();
+  if (name === 'resume-generator' || name.startsWith('resume-')) return true;
+  const body = (skillBody ?? '').toLowerCase();
+  return body.includes('resumexyz') || body.includes('ats-friendly resume');
+}
+
+function renderResumeMetadataBlock(
+  metadata: ProjectMetadata | undefined,
+  template: ProjectTemplate | undefined,
+): string {
+  const lines: string[] = [];
+  lines.push('\n\n## Resume project metadata');
+  lines.push(
+    'This is a ResumeXYZ resume-building project. Treat any legacy prototype, platform, fidelity, design-system, deck, or media defaults as UI shell defaults only; they do not change the resume workflow.',
+  );
+  lines.push('');
+  lines.push('- **canonical deliverables**: final user-facing output is only `resume.docx` and `resume.pdf`; the PDF must match the DOCX content.');
+  lines.push('- **workflow**: collect career facts section by section, ask at most 3 questions per turn, do not move to the next section until the current HR checklist section is complete enough, draft only from supplied facts, tailor to the target role/job description, then run the ATS/truthfulness/scoring review.');
+  lines.push('- **source-aware intake**: if `resumeSource` is `fresh`, run the full guided interview; if `upload`, parse attached resume files first and ask only for missing/high-value evidence; if `link`, treat extracted LinkedIn/portfolio/GitHub text as a starting source, reflect it back for confirmation, and never assume blocked or missing profile fields are true.');
+  if (metadata?.resumeSource) {
+    const s = metadata.resumeSource;
+    lines.push(`- **resumeSource**: mode=${s.mode}${s.sourceKind ? `, kind=${s.sourceKind}` : ''}${s.url ? `, url=${s.url}` : ''}${s.fileName ? `, file=${s.fileName}` : ''}${s.extractionStatus ? `, extraction=${s.extractionStatus}` : ''}.`);
+    if (s.extractedTitle) lines.push(`- **source title**: ${s.extractedTitle}`);
+    if (s.extractionWarning) lines.push(`- **source warning**: ${s.extractionWarning}`);
+    if (s.extractedTextPreview) lines.push(`- **source preview**: ${s.extractedTextPreview}`);
+  }
+  lines.push('- **evidence loop**: before generation, keep probing weak roles for project/task, method/tools, measurable or directional outcome, scope, collaboration, and differentiator. Fresh grads, juniors, and career pivots require project/achievement evidence from school, internships, freelance, certifications, community, or personal work.');
+  lines.push('- **scoring contract**: score ATS Parseability (25), Keyword Alignment (25), Recruiter Scan (20), Impact Evidence (20), and Truthfulness & Completeness (10) before export; if the score is below 85, ask the next 1-3 missing questions and do not export yet.');
+  lines.push('- **format contract**: one-column, text-first, ATS-safe DOCX/PDF. Do not create slide decks, prototype screens, image mockups, decorative design artifacts, or HTML/Markdown/review files as final deliverables unless the user explicitly changes the format requirement.');
+  if (metadata?.templateLabel || template?.name) {
+    lines.push(`- **template**: ${metadata?.templateLabel ?? template?.name} is the resume structure reference, not a product UI theme.`);
+  }
+  return lines.join('\n');
+}
+
 /**
  * Detect the seed/references pattern shipped by the upgraded
  * web-prototype / mobile-app / simple-deck / guizang-ppt skills, and
@@ -735,6 +789,14 @@ function derivePreflight(skillBody: string): string {
   if (/references\/layouts\.md/.test(skillBody)) refs.push('`references/layouts.md`');
   if (/references\/themes\.md/.test(skillBody)) refs.push('`references/themes.md`');
   if (/references\/components\.md/.test(skillBody)) refs.push('`references/components.md`');
+  if (/references\/ats-scoring\.md/.test(skillBody)) refs.push('`references/ats-scoring.md`');
+  if (/references\/bullet-guide\.md/.test(skillBody)) refs.push('`references/bullet-guide.md`');
+  if (/references\/interview-flow\.md/.test(skillBody)) refs.push('`references/interview-flow.md`');
+  if (/agents\/empathy-agent\.md/.test(skillBody)) refs.push('`agents/empathy-agent.md`');
+  if (/agents\/data-collector\.md/.test(skillBody)) refs.push('`agents/data-collector.md`');
+  if (/agents\/feedback-agent\.md/.test(skillBody)) refs.push('`agents/feedback-agent.md`');
+  if (/workflows\/intake\.md/.test(skillBody)) refs.push('`workflows/intake.md`');
+  if (/workflows\/review\.md/.test(skillBody)) refs.push('`workflows/review.md`');
   if (/references\/checklist\.md/.test(skillBody)) refs.push('`references/checklist.md`');
   // The hyperframes skill ships an html-in-canvas reference next to the
   // VFX catalog blocks. The chat handler at server.ts:4138 routes through

@@ -29,6 +29,25 @@ const skills: SkillSummary[] = [
   },
 ];
 
+const resumeSkills: SkillSummary[] = [
+  {
+    id: 'resume-generator',
+    name: 'Resume Generator',
+    description: 'Build ATS-friendly resumes',
+    mode: 'prototype',
+    surface: 'web',
+    previewType: 'html',
+    designSystemRequired: false,
+    defaultFor: ['prototype'],
+    triggers: [],
+    upstream: null,
+    hasBody: true,
+    examplePrompt: 'Create an ATS-friendly resume.',
+    aggregatesExamples: false,
+  },
+  ...skills,
+];
+
 const designSystems: DesignSystemSummary[] = [
   {
     id: 'clay',
@@ -218,6 +237,41 @@ describe('NewProjectPanel design system defaults', () => {
         }),
       }),
     );
+  });
+
+  it('creates resume projects without responsive web platform metadata', () => {
+    const onCreate = vi.fn();
+    render(
+      <NewProjectPanel
+        skills={resumeSkills}
+        designSystems={designSystems}
+        defaultDesignSystemId="clay"
+        templates={[]}
+        onDeleteTemplate={vi.fn()}
+        promptTemplates={[]}
+        onCreate={onCreate}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('new-project-name'), {
+      target: { value: 'Resume payload' },
+    });
+    fireEvent.click(screen.getByTestId('create-project'));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Resume payload',
+        skillId: 'resume-generator',
+        metadata: expect.objectContaining({
+          kind: 'prototype',
+          intent: 'resume',
+          fidelity: 'high-fidelity',
+        }),
+      }),
+    );
+    const payload = onCreate.mock.calls[0]?.[0];
+    expect(payload.metadata).not.toHaveProperty('platform');
+    expect(payload.metadata).not.toHaveProperty('platformTargets');
   });
 
   it('saves live artifact creation with prototype kind, live-artifact intent, and locked high fidelity', () => {

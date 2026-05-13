@@ -1371,6 +1371,29 @@ export async function uploadProjectFiles(
   return { uploaded, failed, error };
 }
 
+export interface ResumeUrlIngestResult {
+  url: string;
+  finalUrl?: string;
+  title?: string;
+  sourceKind: 'linkedin' | 'portfolio' | 'github' | 'personal-site' | 'generic-url';
+  text: string;
+  warning?: string;
+}
+
+export async function ingestResumeSourceUrl(url: string): Promise<ResumeUrlIngestResult | null> {
+  try {
+    const resp = await fetch('/api/resume/ingest-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()) as ResumeUrlIngestResult;
+  } catch {
+    return null;
+  }
+}
+
 // Stable URL that serves a project file with its original mime — for
 // thumbnails in the staged-attachment chips and for any preview iframe
 // that needs to point at the live file (not a srcDoc).

@@ -55,7 +55,6 @@ import { fetchProviderModels } from '../providers/provider-models';
 import { fetchConnectors, fetchSkills } from '../providers/registry';
 import { MEDIA_PROVIDERS } from '../media/models';
 import type { MediaProvider } from '../media/models';
-import { PetSettings } from './pet/PetSettings';
 import { McpClientSection } from './McpClientSection';
 import { SkillsSection } from './SkillsSection';
 import { DesignSystemsSection } from './DesignSystemsSection';
@@ -1577,17 +1576,6 @@ export function SettingsDialog({
             </button>
             <button
               type="button"
-              className={`settings-nav-item${activeSection === 'pet' ? ' active' : ''}`}
-              onClick={() => setActiveSection('pet')}
-            >
-              <Icon name="sparkles" size={18} />
-              <span>
-                <strong>{t('pet.navTitle')}</strong>
-                <small>{t('pet.navHint')}</small>
-              </span>
-            </button>
-            <button
-              type="button"
               className={`settings-nav-item${activeSection === 'designSystems' ? ' active' : ''}`}
               onClick={() => setActiveSection('designSystems')}
             >
@@ -2469,10 +2457,6 @@ export function SettingsDialog({
 
           {activeSection === 'notifications' ? (
             <NotificationsSection cfg={cfg} setCfg={setCfg} />
-          ) : null}
-
-          {activeSection === 'pet' ? (
-            <PetSettings cfg={cfg} setCfg={setCfg} />
           ) : null}
 
           {activeSection === 'skills' ? (

@@ -29,12 +29,11 @@ import {
   fetchConnectors,
   fetchConnectorStatuses,
 } from '../providers/registry';
-import { PetRail } from './pet/PetRail';
 import { PromptTemplatePreviewModal } from './PromptTemplatePreviewModal';
 import { PromptTemplatesTab } from './PromptTemplatesTab';
 import { apiProtocolLabel } from '../utils/apiProtocol';
 
-type TopTab = 'designs' | 'templates' | 'design-systems' | 'image-templates' | 'video-templates';
+type TopTab = 'designs' | 'templates';
 
 interface Props {
   // Union of functional skills + design templates — used for id-based
@@ -71,10 +70,7 @@ interface Props {
   onDeleteProject: (id: string) => void;
   onRenameProject: (id: string, name: string) => void;
   onChangeDefaultDesignSystem: (id: string) => void;
-  onOpenSettings: (section?: 'execution' | 'media' | 'composio' | 'language' | 'appearance' | 'notifications' | 'pet' | 'about') => void;
-  onAdoptPet: () => void;
-  onAdoptPetInline: (petId: string) => void;
-  onTogglePet: () => void;
+  onOpenSettings: (section?: 'execution' | 'media' | 'composio' | 'language' | 'appearance' | 'notifications' | 'about') => void;
 }
 
 const SIDEBAR_MIN = 320;
@@ -94,12 +90,6 @@ export function isTrustedConnectorCallbackOrigin(origin: string, currentOrigin?:
     return false;
   }
 }
-
-// Lets the user fully remove the right-side pet rail from the entry
-// layout. They re-summon it from the entry-view avatar dropdown — the
-// PetRail's own collapse toggle only narrows the column, so this state
-// is the "the rail isn't there at all" escape hatch.
-const PET_RAIL_HIDDEN_KEY = 'open-design:pet-rail-hidden';
 
 function loadSidebarWidth(): number {
   try {
@@ -212,15 +202,6 @@ export function sortConnectorsForSearch(
     .map((entry) => entry.connector);
 }
 
-function loadPetRailHidden(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(PET_RAIL_HIDDEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export function EntryView({
   skills,
   designTemplates,
@@ -246,9 +227,6 @@ export function EntryView({
   onRenameProject,
   onChangeDefaultDesignSystem,
   onOpenSettings,
-  onAdoptPet,
-  onAdoptPetInline,
-  onTogglePet,
 }: Props) {
   const t = useT();
   const [topTab, setTopTab] = useState<TopTab>('designs');
@@ -259,16 +237,6 @@ export function EntryView({
   const [resizing, setResizing] = useState(false);
   const [connectors, setConnectors] = useState<ConnectorDetail[]>([]);
   const [connectorsLoading, setConnectorsLoading] = useState(false);
-  const [petRailHidden, setPetRailHiddenState] = useState<boolean>(() => loadPetRailHidden());
-
-  function setPetRailHidden(next: boolean) {
-    setPetRailHiddenState(next);
-    try {
-      window.localStorage.setItem(PET_RAIL_HIDDEN_KEY, next ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }
 
   const currentAgent = useMemo(
     () => agents.find((a) => a.id === config.agentId) ?? null,
@@ -292,12 +260,18 @@ export function EntryView({
   // create the project immediately with sane defaults derived from the skill,
   // seeding the chat composer with the example prompt via pendingPrompt.
   function usePromptFromSkill(skill: SkillSummary) {
+    const isResumeTemplate =
+      skill.id.startsWith('resume-') || skill.scenario === 'resume' || skill.category === 'resume';
+    const pendingPrompt =
+      isResumeTemplate
+        ? `${skill.examplePrompt || skill.description}\n\nSelected resume template: ${skill.name}. Use it as the structure reference while following the resume-generator.skill DOCX workflow.`
+        : skill.examplePrompt || skill.description;
     onCreateProject({
       name: skill.name,
       skillId: skill.id,
       designSystemId: null,
       metadata: metadataForSkill(skill),
-      pendingPrompt: skill.examplePrompt || skill.description,
+      pendingPrompt,
     });
   }
 
@@ -397,18 +371,13 @@ export function EntryView({
   return (
     <div className="entry-shell">
       <div
-        className={`entry${petRailHidden ? '' : ' has-pet-rail'}`}
+        className="entry"
         style={{
-          gridTemplateColumns: petRailHidden
-            ? `${sidebarWidth}px 1fr`
-            : `${sidebarWidth}px 1fr auto`,
+          gridTemplateColumns: `${sidebarWidth}px 1fr`,
         }}
       >
       <aside className="entry-side" style={{ width: sidebarWidth }}>
         <div className="entry-brand">
-          <span className="entry-brand-mark" aria-hidden>
-            <img src="/app-icon.svg" alt="" className="brand-mark-img" draggable={false} />
-          </span>
           <div className="entry-brand-text">
             <div className="entry-brand-title-row">
               <span className="entry-brand-title">{t('app.brand')}</span>
@@ -417,6 +386,9 @@ export function EntryView({
         </div>
         <NewProjectPanel
           skills={skills}
+          resumeDesignTemplates={designTemplates.filter(
+            (t) => t.id.startsWith('resume-') || t.scenario === 'resume' || t.category === 'resume',
+          )}
           designSystems={designSystems}
           defaultDesignSystemId={defaultDesignSystemId}
           templates={templates}
@@ -453,42 +425,6 @@ export function EntryView({
           </button>
           <div className="entry-side-foot-row">
             <LanguageMenu />
-            <div className={`foot-pill pet-pill${config.pet?.adopted ? '' : ' pet-pill-fresh'}`}>
-              <button
-                type="button"
-                className="pet-pill-main"
-                onClick={onAdoptPet}
-                title={
-                  config.pet?.adopted
-                    ? t('pet.changePet')
-                    : t('pet.adoptCallout')
-                }
-              >
-                <span className="pet-pill-glyph" aria-hidden>
-                  {config.pet?.adopted
-                    ? config.pet.petId === 'custom'
-                      ? config.pet.custom.glyph || '🦄'
-                      : '🐾'
-                    : '🐾'}
-                </span>
-                <span className="foot-pill-pet-label">
-                  {config.pet?.adopted
-                    ? t('pet.changePet')
-                    : t('pet.adoptCallout')}
-                </span>
-                {!config.pet?.adopted ? <span className="pet-pill-dot" aria-hidden /> : null}
-              </button>
-              <span className="pet-pill-divider" aria-hidden />
-              <button
-                type="button"
-                className="pet-pill-toggle"
-                onClick={() => setPetRailHidden(!petRailHidden)}
-                aria-label={petRailHidden ? t('pet.railShow') : t('pet.railHide')}
-                title={petRailHidden ? t('pet.railShow') : t('pet.railHide')}
-              >
-                <Icon name={petRailHidden ? 'eye' : 'eye-off'} size={12} />
-              </button>
-            </div>
             <a
               className="foot-pill foot-pill-follow"
               href="https://x.com/nexudotio"
@@ -518,24 +454,6 @@ export function EntryView({
           <div className="entry-tabs" role="tablist">
             <TopTabButton current={topTab} value="designs" label={t('entry.tabDesigns')} onClick={setTopTab} />
             <TopTabButton current={topTab} value="templates" label={t('entry.tabTemplates')} onClick={setTopTab} />
-            <TopTabButton
-              current={topTab}
-              value="design-systems"
-              label={t('entry.tabDesignSystems')}
-              onClick={setTopTab}
-            />
-            <TopTabButton
-              current={topTab}
-              value="image-templates"
-              label={t('entry.tabImageTemplates')}
-              onClick={setTopTab}
-            />
-            <TopTabButton
-              current={topTab}
-              value="video-templates"
-              label={t('entry.tabVideoTemplates')}
-              onClick={setTopTab}
-            />
           </div>
         </div>
         <div className="entry-tab-content">
@@ -568,51 +486,8 @@ export function EntryView({
               />
             )
           ) : null}
-          {topTab === 'design-systems' ? (
-            designSystemsLoading ? (
-              <CenteredLoader label={t('common.loading')} />
-            ) : (
-              <DesignSystemsTab
-                systems={designSystems}
-                selectedId={defaultDesignSystemId}
-                onSelect={onChangeDefaultDesignSystem}
-                onPreview={previewDesignSystem}
-              />
-            )
-          ) : null}
-          {topTab === 'image-templates' ? (
-            promptTemplatesLoading ? (
-              <CenteredLoader label={t('common.loading')} />
-            ) : (
-              <PromptTemplatesTab
-                surface="image"
-                templates={promptTemplates}
-                onPreview={setPreviewPromptTemplate}
-              />
-            )
-          ) : null}
-          {topTab === 'video-templates' ? (
-            promptTemplatesLoading ? (
-              <CenteredLoader label={t('common.loading')} />
-            ) : (
-              <PromptTemplatesTab
-                surface="video"
-                templates={promptTemplates}
-                onPreview={setPreviewPromptTemplate}
-              />
-            )
-          ) : null}
         </div>
       </main>
-      {petRailHidden ? null : (
-        <PetRail
-          config={config}
-          onAdoptInline={onAdoptPetInline}
-          onOpenPetSettings={onAdoptPet}
-          onTuck={onTogglePet}
-          onHide={() => setPetRailHidden(true)}
-        />
-      )}
       </div>
       {previewSystem ? (
         <DesignSystemPreviewModal
@@ -664,7 +539,13 @@ function TopTabButton({
 function metadataForSkill(skill: SkillSummary): ProjectMetadata {
   const kind = kindForSkill(skill);
   if (kind === 'prototype') {
-    return { kind, fidelity: skill.fidelity ?? 'high-fidelity' };
+    return {
+      kind,
+      fidelity: skill.fidelity ?? 'high-fidelity',
+      ...(skill.id === 'resume-generator' || skill.id.startsWith('resume-')
+        ? { intent: 'resume' as const, templateLabel: skill.name }
+        : {}),
+    };
   }
   if (kind === 'deck') {
     return {

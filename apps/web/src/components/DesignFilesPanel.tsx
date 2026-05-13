@@ -19,10 +19,11 @@ interface Props {
   onRenameFile: (from: string, to: string) => Promise<ProjectFile | null> | ProjectFile | null;
   onDeleteFile: (name: string) => void;
   onDeleteFiles: (names: string[]) => Promise<void> | void;
-  onUpload: () => void;
-  onUploadFiles: (files: File[]) => void;
-  onPaste: () => void;
-  onNewSketch: () => void;
+  onUpload?: () => void;
+  onUploadFiles?: (files: File[]) => void;
+  onPaste?: () => void;
+  onNewSketch?: () => void;
+  generating?: boolean;
   uploadError?: string | null;
   onClearUploadError?: () => void;
 }
@@ -63,17 +64,12 @@ export function DesignFilesPanel({
   onRenameFile,
   onDeleteFile,
   onDeleteFiles,
-  onUpload,
-  onUploadFiles,
-  onPaste,
-  onNewSketch,
+  generating = false,
   uploadError = null,
   onClearUploadError,
 }: Props) {
   const t = useT();
   const [refreshing, setRefreshing] = useState(false);
-  const [draggingFiles, setDraggingFiles] = useState(false);
-  const dragDepthRef = useRef(0);
   const [hover, setHover] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ name: string; top: number; left: number } | null>(null);
   const MENU_ESTIMATED_HEIGHT = 145;
@@ -538,14 +534,6 @@ export function DesignFilesPanel({
     }
   }
 
-  function handleDrop(ev: React.DragEvent<HTMLDivElement>) {
-    ev.preventDefault();
-    dragDepthRef.current = 0;
-    setDraggingFiles(false);
-    const dropped = Array.from(ev.dataTransfer.files ?? []);
-    if (dropped.length > 0) onUploadFiles(dropped);
-  }
-
   return (
     <div className={`df-panel ${preview ? '' : 'no-preview'}`}>
       <div className="df-main">
@@ -582,27 +570,7 @@ export function DesignFilesPanel({
                 <span>{t('designFiles.deleteSelected', { n: selected.size })}</span>
               </button>
             </div>
-          ) : (
-            <div className="df-actions">
-            <button type="button" onClick={onNewSketch} title={t('designFiles.newSketch')}>
-              <Icon name="pencil" size={13} />
-              <span>{t('designFiles.newSketch')}</span>
-            </button>
-            <button type="button" onClick={onPaste} title={t('designFiles.paste.title')}>
-              <Icon name="copy" size={13} />
-              <span>{t('designFiles.paste.label')}</span>
-            </button>
-            <button
-              type="button"
-              data-testid="design-files-upload-trigger"
-              onClick={onUpload}
-              title={t('designFiles.upload.title')}
-            >
-              <Icon name="upload" size={13} />
-              <span>{t('designFiles.upload.label')}</span>
-            </button>
-          </div>
-          )}
+          ) : null}
         </div>
         <div className="df-body">
           {uploadError && !preview ? (
@@ -621,20 +589,16 @@ export function DesignFilesPanel({
           ) : null}
           {files.length === 0 && liveArtifacts.length === 0 ? (
             <div className="df-empty" data-testid="design-files-empty">
-              <div className="df-empty-pill">
+              <div className="df-empty-pill df-empty-pill-resume">
+                {generating ? <span className="df-empty-spinner" aria-hidden /> : null}
                 <span className="df-empty-title">
-                  {t('designFiles.empty')}
+                  {generating ? 'Building your resume preview' : t('designFiles.empty')}
                 </span>
-                <button
-                  type="button"
-                  className="df-empty-cta"
-                  data-testid="design-files-empty-new-sketch"
-                  onClick={onNewSketch}
-                  title={t('designFiles.newSketch')}
-                >
-                  <Icon name="pencil" size={13} />
-                  <span>{t('designFiles.newSketch')}</span>
-                </button>
+                <span className="df-empty-desc">
+                  {generating
+                    ? 'ResumeXYZ is generating the DOCX and PDF files now.'
+                    : 'After the interview is complete, your ATS-friendly DOCX and PDF previews will appear here.'}
+                </span>
               </div>
             </div>
           ) : (
@@ -851,31 +815,6 @@ export function DesignFilesPanel({
               ) : null}
             </>
           )}
-          <div
-            className={`df-drop ${draggingFiles ? 'dragging' : ''}`}
-            onDragEnter={(ev) => {
-              ev.preventDefault();
-              dragDepthRef.current += 1;
-              setDraggingFiles(true);
-            }}
-            onDragOver={(ev) => {
-              ev.preventDefault();
-              ev.dataTransfer.dropEffect = 'copy';
-            }}
-            onDragLeave={(ev) => {
-              if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) {
-                dragDepthRef.current = 0;
-                setDraggingFiles(false);
-                return;
-              }
-              dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-              if (dragDepthRef.current === 0) setDraggingFiles(false);
-            }}
-            onDrop={handleDrop}
-          >
-            <span className="label">{t('designFiles.dropTitle')}</span>
-            <span className="desc">{t('designFiles.dropDesc')}</span>
-          </div>
         </div>
       </div>
       {preview && previewFile ? (

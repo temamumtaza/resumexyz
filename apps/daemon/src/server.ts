@@ -108,6 +108,20 @@ import {
   VIDEO_MODELS,
 } from './media-models.js';
 import { readMaskedConfig, writeConfig } from './media-config.js';
+
+const RESUME_CATALOG_IDS = new Set([
+  'resume-generator',
+  'resume-ats-default',
+]);
+
+function filterResumeCatalog(entries) {
+  return entries.filter((entry) => {
+    if (!entry) return false;
+    if (entry.source === 'user') return true;
+    if (RESUME_CATALOG_IDS.has(entry.id)) return true;
+    return entry.scenario === 'resume' || entry.category === 'resume';
+  });
+}
 import {
   deleteMediaTask,
   getMediaTask,
@@ -2081,11 +2095,11 @@ export async function startServer({
   // declares, and lets a user-imported entry shadow a built-in one of
   // the same id without erasing the built-in copy.
   async function listAllSkills() {
-    return listSkills(SKILL_ROOTS);
+    return filterResumeCatalog(await listSkills(SKILL_ROOTS));
   }
 
   async function listAllDesignTemplates() {
-    return listSkills(DESIGN_TEMPLATE_ROOTS);
+    return filterResumeCatalog(await listSkills(DESIGN_TEMPLATE_ROOTS));
   }
 
   // Spans both roots so chat run system-prompt composition and the orbit
@@ -2093,7 +2107,7 @@ export async function startServer({
   // which surface created the project after the skills/design-templates
   // split. Keep in sync with SKILL_ROOTS + DESIGN_TEMPLATE_ROOTS above.
   async function listAllSkillLikeEntries() {
-    return listSkills(ALL_SKILL_LIKE_ROOTS);
+    return filterResumeCatalog(await listSkills(ALL_SKILL_LIKE_ROOTS));
   }
 
   async function listAllDesignSystems() {

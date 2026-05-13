@@ -329,6 +329,8 @@ function humanizeExampleName(key: string): string {
     .map((word) =>
       word.length === 0
         ? word
+        : word.toLowerCase() === "ats"
+        ? "ATS"
         : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     )
     .join(" ");
